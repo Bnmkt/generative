@@ -11,14 +11,19 @@ const update = (ctx, obj)=>{
     const random = (min, max)=>{
         return Math.floor(Math.random()*max)+min;
     };
+    const isSolid = (what, where, x, y)=>{
+        console.log(`x:${x} /y:${y}`);
+        return what[where[y][x]].solid;
+    }
     const weight = (array)=>{
         return array.map((el)=>{
-            let elem = [];
-            if(el.weight<0) el.weight=1;
-            for(let i=0;i<el.weight;i++){
-                elem.push(el.name);
+            if(el.weight>0) {
+                let elem = [];
+                for (let i = 0; i < el.weight; i++) {
+                    elem.push(el.name);
+                }
+                return elem.toString();
             }
-            return elem.toString();
         }).toString().split(",");
     };
     const toObj = (arr, by)=>{
@@ -34,50 +39,55 @@ const update = (ctx, obj)=>{
         img.src = `./images/${image}.png`;
         ctx.drawImage(img, x, y);
     };
-
-    let vars = obj||{
+    let vars = {
+        "map":[],
+        "player":{
+            "x":0,
+            "y":0,
+            "image":"human"
+        },
         "game":{
+            "generated":false,
             "height":game.height,
             "width":game.width,
-            "tab":[],
-            "player":{
-                "x":0,
-                "y":0,
-                "image":"human"
-            }
         },
         "tiles":{
             "type":[
                 {
                     "name":"wall",
-                    "weight":8,
+                    "weight":0,
                     "solid":1,
                     "color":"#111",
-                    "image":"wall"
+                    "image":"wall",
+                    "count":0
                 },{
                     "name":"dirt",
-                    "weight":20,
+                    "weight":0,
                     "solid":0,
                     "color":"#553311",
-                    "image":"dirt"
+                    "image":"dirt",
+                    "count":0
                 },{
                     "name":"grass",
-                    "weight":20,
+                    "weight":30,
                     "solid":0,
                     "color":"#005521",
-                    "image":"grass"
+                    "image":"grass",
+                    "count":0
                 },{
                     "name":"water",
-                    "weight":14,
+                    "weight":0,
                     "solid":1,
                     "color":"#1142aa",
-                    "image":"water"
+                    "image":"water",
+                    "count":0
                 },{
                     "name":"lava",
-                    "weight":2,
+                    "weight":0,
                     "solid":1,
                     "color":"#6a0126",
-                    "image":"lava"
+                    "image":"lava",
+                    "count":0
                 }
             ],
             "height":48,
@@ -86,80 +96,118 @@ const update = (ctx, obj)=>{
             "strokeColor":"#666",
         }
     };
-    if(!vars.game.tab[0]) { // If not generated
-        console.log("generating");
-        // defining other way to find tile
-        vars.tiles["typeByName"]=toObj(vars.tiles.type);
-        vars.tiles["wtype"]= weight(vars.tiles.type);
-        // counting how many tiles can be on the screen
-        vars.game["tilesX"] = Math.floor(vars.game.width / vars.tiles.width);
-        vars.game["tilesY"] = Math.floor(vars.game.height / vars.tiles.height);
-
-        for (let x = 0; x <= vars.game.tilesX; x++) { // generating an array, the map
-            vars.game.tab[x] = [];
-            for (let y = 0; y <= vars.game.tilesY; y++) {
-                let value = 0; // default value of all tiles (WALL)
-                if (x !== 0 && x !== vars.game.tilesX && y !== 0 && y !== vars.game.tilesY) { // if we are not on the border
-                    const r = random(0, vars.tiles.wtype.length-1); // we get a random number of weighted blocks
-                    value = r;
-                }
-                vars.game.tab[x][y] = value;
+    if(obj) {
+        if (obj.game === undefined) {
+            for (let params in obj) {
+                vars[params] = obj[params];
+            }
+        } else {
+            if (obj.game.generated === true) {
+                vars = obj;
             }
         }
-        // player position randomly generated
-        let nx = random(1, vars.game.tilesX - 1);
-        let ny = random(1, vars.game.tilesY - 1);
-        vars.game.player.x = nx;
-        vars.game.player.y = ny;
+    }
+    let map = vars.map;
+    let tiles = vars.tiles;
+    let player = vars.player;
+    if(!vars.game.generated && vars.game.generated!==true) {
+        console.log(game.width, game.height)
+        // defining other way to find tile
+        tiles["typeByName"]=toObj(tiles.type);
+        tiles["wtype"]= weight(tiles.type);
+        // counting how many tiles can be on the screen
+        vars.game["tilesX"] = Math.floor(game.width / tiles.width)-1;
+        vars.game["tilesY"] = Math.floor(game.height / tiles.height)-1;
+
+        if (!map[0]) { // If the map is not generated
+            for (let y = 0; y <= vars.game.tilesY; y++) { // generating an array, the map
+                map[y] = [];
+                for (let x = 0; x <= vars.game.tilesX; x++) {
+                    let value = "wall"; // default value of all tiles (WALL)
+                    if (x !== 0 && x !== vars.game.tilesX && y !== 0 && y !== vars.game.tilesY) { // if we are not on the border
+                        const r = random(0, tiles.wtype.length - 1); // we get a random number of weighted blocks
+                        const blockN = tiles.wtype[r]; // the id refers to the weighted blocks
+                        const block = tiles.typeByName[blockN]?tiles.typeByName[blockN]:tiles.typeByName["dirt"]; // and now we can get the true block element
+                        block.count++;
+                        value = block.name;
+                        if (value === "wall") {
+                            console.log("hum");
+                        }
+                    }
+                    map[y][x] = value;
+                }
+            }
+            // player position randomly generated
+            let nx = random(1, vars.game.tilesX - 1);
+            let ny = random(1, vars.game.tilesY - 1);
+            player.x = nx;
+            player.y = ny;
+        }
+        vars.game.generated = true;
     }
     // when the map is generated we have to draw what the array contains
-    for (let x = 0; x < vars.game.tab.length; x++) {
-        for (let y = 0; y < vars.game.tab[x].length; y++) {
-            const r = vars.game.tab[x][y]; // getting an id
-            const blockN = vars.tiles.wtype[r]; // the id refers to the weighted blocks
-            const block = vars.tiles.typeByName[blockN]; // and now we can get the true block element
-            if(block.image){ // if the true block contain an image
-                drawSprite(x *vars.tiles.width, y *vars.tiles.height, block.image); // we draw an image
-            }else { // otherwise we draw a square with the block color
-                ctx.fillStyle = block.color;
-                ctx.fillRect(x * vars.tiles.width, y * vars.tiles.height, vars.tiles.width, vars.tiles.height);
-                ctx.strokeStyle = vars.tiles.strokeColor;
-                ctx.strokeRect(x * vars.tiles.width, y * vars.tiles.height, vars.tiles.width, vars.tiles.height);
+    for (let y = 0; y < map.length; y++) {
+        for (let x = 0; x < map[y].length; x++) {
+            let block = tiles.typeByName[map[y][x]];
+            if (!block) {
+                map[y][x] = "dirt";
+                block = tiles.typeByName["dirt"]
             }
+                if (block.image) { // if the true block contain an image
+                    drawSprite(x * tiles.width, y * tiles.height, block.image); // we draw an image
+                } else { // otherwise we draw a square with the block color
+                    ctx.fillStyle = block.color;
+                    ctx.fillRect(x * tiles.width, y * tiles.height, tiles.width, tiles.height);
+                    ctx.strokeStyle = tiles.strokeColor;
+                    ctx.strokeRect(x * tiles.width, y * tiles.height, tiles.width, tiles.height);
+                }
             // after that we put the player on the top of the map
-            if(vars.game.player.x === x && vars.game.player.y === y){
-                drawSprite(x*vars.tiles.width, y*vars.tiles.height, vars.game.player.image);
+            if (player.x === x && player.y === y) {
+                drawSprite(x * tiles.width, y * tiles.height, player.image);
             }
+
         }
     }
 
     if(direction){ // this condition is true web a keyboard event happen
-        let blocks = vars.tiles.wtype;
-        let bloc = vars.tiles.typeByName;
-        let tab = vars.game.tab;
-        let player = vars.game.player;
+        let bloc = tiles.typeByName;
+        let tab = map;
 
         // tab[player.x][player.y]=0;
         let action = true;
         switch (direction) {
             case 37: //left
-                if(!bloc[blocks[tab[player.x-1][player.y]]].solid)player.x--;
+                if(!isSolid(bloc, tab, player.x-1, player.y))player.x--;
                 break;
             case 38: //up
-                if(!bloc[blocks[tab[player.x][player.y-1]]].solid)player.y--;
+                if(!isSolid(bloc, tab, player.x, player.y-1))player.y--;
                 break;
             case 39: //right
-                if(!bloc[blocks[tab[player.x+1][player.y]]].solid)player.x++;
+                if(!isSolid(bloc, tab, player.x+1, player.y))player.x++;
                 break;
             case 40: //bottom
-                if(!bloc[blocks[tab[player.x][player.y+1]]].solid)player.y++;
+                if(!isSolid(bloc, tab, player.x, player.y+1))player.y++;
+                break;
+            case 97: // 1
+                tab[player.y][player.x]="dirt";
+                break;
+            case 98: // 2
+                tab[player.y][player.x]="grass";
+                break;
+            case 99: // 3
+                tab[player.y][player.x]="water";
+                break;
+            case 100: // 4
+                tab[player.y][player.x]="lava";
+                break;
+            case 111: // divide
+                console.log(vars);
+                break;
+            case 106: // star
+                console.log(vars.tiles.type);
                 break;
             default:
                 action = false;
-        }
-        if (action) { // if the key pressed is a game key, we redefine the map and the player
-            vars.game.tab = tab;
-            vars.game.player = player;
         }
         direction=null; // and we reset the direction
     }
